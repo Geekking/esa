@@ -1,0 +1,5 @@
+eclipse.preferences.version=1
+encoding//db/check.py=utf-8
+encoding//db/writeToDb.py=utf-8
+encoding/processor.py=utf-8
+encoding/processorAdvance.py=utf-8
