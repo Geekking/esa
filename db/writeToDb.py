@@ -31,12 +31,14 @@ for each_file in file_list:
         try:
             cursor = conn.cursor()
             for eachline in sqllist:
+               # print eachline
                 newline = eachline
                 if len(newline) <4:
                     continue
                 while newline[len(newline)-1] =='\n' or newline[len(newline)-1] ==';':
                     newline = newline[:-1]
                 #print newline
+                newline = newline.encode('UTF-8')
                 cursor.execute(newline)
                 count +=1
             if count >=1000:    
@@ -44,7 +46,7 @@ for each_file in file_list:
                 count =0
         except MySQLdb.Error, e:
             print "Error %d: %s" % (e.args[0], e.args[1])
-           # sys.exit(1)
+            #sys.exit(1)
         sqllist = sqlFile.readlines(1000)
     conn.commit()
     

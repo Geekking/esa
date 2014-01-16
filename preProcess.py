@@ -10,8 +10,6 @@ import time
 import re    #正则表达式模块
 import Stemmer
 import string
-from lxml import etree
-STEMMER = Stemmer.Stemmer("porter")
 #pge-articels xml文档所在绝对路径
 
 #运行前需要修改
@@ -22,21 +20,38 @@ STEMMER = Stemmer.Stemmer("porter")
 tempoutputfiledirpath = "/home/lanny/Documents/project/wiki_xml_doc/test/outSQL/"
 tempfilepath ='/home/lanny/Documents/project/wiki_xml_doc/enwiki-20131104-pages-articles27.xml'
 
-
+#维基百科管理标题
+wikiPattern = re.compile('(Category:)?.*?((w|W)iki(P|p)edia.*?)')
+#网页链接
+websitePattern = re.compile('(\w+\.){2,4}\w+')
+#类别标签
 categoryPattern = re.compile(u'\[\[Category:.+?\]\]')
-disambiguationPattern = re.compile('.*?(D|d)isambiguation pages.*?')
-disambiguationPattern2 = re.compile(u'\{\{((.*?(D|d)isambiguation.*?)|(.*?(H|h)ndis.*?)|(.*?(G|g)eodis.*?)|(.*?(L|l)ists of ambiguous numbers.*?))\}\}')
+#消歧义类别模板
+disambiguationPattern = re.compile(u'\{\{((.*?(D|d)isambig.*?)|(.*?(H|h)ndis.*?)|(.*?(G|g)eodis.*?)|(.*?(L|l)ists of ambiguous numbers.*?))\}\}')
+
+#内部链接
 innerLinkPattern = re.compile(u'\[\[.+?\]\]')
+#段落小标题
 partionPattern = re.compile('==.*?==')
-removePattern = re.compile("\[\[|\]\]|<.*?>|#.*\n?|={1,5}.+?={1,5}|;|\*+?|\'{6}|\[http://.*?\]|\{\{\n?|\}\}\n?|^\|.*$",re.MULTILINE)
-removePattern2 = re.compile('(\[\[((File:.*?)|(Image:.*?))\]\])|(\{\{.*?\}\})',re.DOTALL)
-removePattern3 = re.compile('(\{\{.*?\}\})',re.DOTALL)
-removeBracket=re.compile('\(?\,[^()]*(\\\\)?\)')
-removeBracket2 = re.compile('\(.*?\)')
+#维基百科HTML标签
+htmltagPattern = re.compile("\[\[|\]\]|<.*?>|#.*\n?|={1,5}.+?={1,5}|;|\*+?|\'{6}|\[http://.*?\]|\{\{\n?|\}\}\n?|^\|.*$",re.MULTILINE)
+#维基百科非文本链接
+filePattern = re.compile('(\[\[((File:.*?)|(Image:.*?))\]\])',re.DOTALL)
+#括号
+bracketPattern = re.compile('\(.*?\)')
+#页面尾部信息
 skipPattern = re.compile('== ?Further reading.*?\[\[Category:|== ?External links.*?\[\[Category:|== ?References.*?\[\[Category:|== ?See also.*?\[\[Category:|== ?Notes.*?\[\[Category:',re.DOTALL)
+#注释
+commentPattern = re.compile('(<!--)|(-->)')
+
+#括号
 quotePattern = re.compile('(\')|(\")|(\\\\)')
-removeInfoBox = re.compile('\{\{.*?\'{3}',re.DOTALL)
-tablePattern = re.compile('\{\|.*?\|\}',re.DOTALL)
+#infobox
+infoboxPattern = re.compile('\{\{.*?\'{3}',re.DOTALL)
+#表格
+tablePattern = re.compile('(\{\|.*?\|\})|(\{\{.*?\}\})',re.DOTALL)
+#角注
+refPattern = re.compile('(<ref.*?>.*?</ref>)|(<ref .*?/>)',re.DOTALL)
 #XML文档的一些基本消息
 class XMLModel:
     def __init__(self):
@@ -70,7 +85,7 @@ class XMLProcessor:
         
         createNamespaceTableSql = '''
              DROP TABLE IF EXISTS `namespace`;\n
-                CREATE TABLE `namespace` (`id` int(100) unsigned NOT NULL AUTO_INCREMENT,PRIMARY KEY (`id`)) ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n '''
+                CREATE TABLE `namespace` (`id` int(100) unsigned NOT NULL AUTO_INCREMENT,`title` varchar(1000) DEFAULT NULL,PRIMARY KEY (`id`),KEY `title` (`title`(15))) ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n '''
         createArticleTableSql = '''
                DROP TABLE IF EXISTS `article`;\n
                 CREATE TABLE `article` (`id` int(100) unsigned NOT NULL AUTO_INCREMENT,`title` varchar(1000) DEFAULT NULL,`abstract` longtext DEFAULT NULL,`anchor` longtext DEFAULT NULL,`text`  longtext ,`anchor2` longtext ,PRIMARY KEY (`id`),KEY `title` (`title`(15)))ENGINE=InnoDB AUTO_INCREMENT=353354 DEFAULT CHARSET=utf8mb4;\n '''
@@ -80,10 +95,10 @@ class XMLProcessor:
                 CREATE TABLE `category` (`id` int(100) unsigned NOT NULL AUTO_INCREMENT,`cat_title` varchar(1000) DEFAULT NULL,`p_cat` longtext DEFAULT NULL,`c_cat` varchar(1000) DEFAULT NULL,PRIMARY KEY (`id`), KEY `title` (`cat_title`(15))  ) ENGINE=InnoDB AUTO_INCREMENT=77953 DEFAULT CHARSET=utf8mb4;\n'''
         createDisambiguateTableSql = '''
                 DROP TABLE IF EXISTS `disambiguation`;\n
-                CREATE TABLE `disambiguation` (`id` int(100) unsigned NOT NULL AUTO_INCREMENT,`title` varchar(1000) DEFAULT NULL,`dis_title` longtext DEFAULT NULL, PRIMARY KEY (`id`),KEY `title` (`title`(15)))ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n '''
+                CREATE TABLE `disambiguation` (`id` int(100) unsigned NOT NULL AUTO_INCREMENT,`title` varchar(1000) DEFAULT NULL,`dis_title` longtext DEFAULT NULL,`dis_id` longtext DEFAULT NULL, PRIMARY KEY (`id`),KEY `title` (`title`(15)))ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n'''
         createPagelinksTableSql= '''
                 DROP TABLE IF EXISTS `pagelinks`;\n
-                CREATE TABLE `pagelinks` (`source_id` int(100) unsigned NOT NULL , `target_title` longtext DEFAULT NULL ,PRIMARY KEY (`source_id`))ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n '''
+                CREATE TABLE `pagelinks` (`source_id` int(100) unsigned NOT NULL , `source_title` longtext DEFAULT NULL ,`target_id` int(100) unsigned DEFAULT NULL, `target_title` longtext DEFAULT NULL,`outlinknumber` int(100) unsigned DEFAULT NULL,`inlinknumber` int(100) unsigned DEFAULT NULL ,PRIMARY KEY (`source_id`))ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n'''
 
         createRedirectTableSql = '''
                  DROP TABLE IF EXISTS `redirect`;\n
@@ -165,13 +180,13 @@ class XMLProcessor:
         values= (pageid,pagetitle,abs,'|'.join(anchor),text,'|'.join(anchor2))
         
         return "INSERT INTO `article` VALUES('%s','%s','%s','%s','%s','%s');\n"%values                 
-    def getPagelinkSql(self,pageid,targettitle):
-        values = (pageid,'|'.join(targettitle))
-        return "INSERT INTO `pagelinks` VALUES('%s','%s');\n"%values
+    def getPagelinkSql(self,pageid,title,targettitle):
+        values = (pageid,title,0,'|'.join(targettitle),len(targettitle),0)
+        return "INSERT INTO `pagelinks` VALUES('%s','%s','%s','%s','%s','%s');\n"%values
     
     def getDisambiguationSql(self,pageid,pagetitle,dis_titles):
-        values = (pageid,pagetitle,'|'.join(dis_titles))
-        return  "INSERT INTO `disambiguation` VALUES('%s','%s','%s');\n"%values    
+        values = (pageid,pagetitle,'|'.join(dis_titles),0)
+        return  "INSERT INTO `disambiguation` VALUES('%s','%s','%s','%s');\n"%values    
     
    
     def processRedirect(self,elem,redirectSubelem,title_id):
@@ -183,31 +198,69 @@ class XMLProcessor:
             self.redirectSqlFile.write(self.getRedirectInsertSql(title_id,from_title,to_title))
         except:
             print "Cann't write to the redirectSqlFile"
-    def processNamespace(self,pageid):
-        insertNamespaceSql = "INSERT INTO `namespace` VALUES ('%s');\n"%pageid
+    def processNamespace(self,pageid,title):
+        insertNamespaceSql = "INSERT INTO `namespace` VALUES ('%s','%s');\n"%(pageid,title)
         try:
             self.namespaceSqlFile.write(insertNamespaceSql)
         except:
             print "cannot write to the namespace file"
-
+    def removeInfoBox(self,text):
+        text=string.lstrip(text,'\n ')
+        if text[0] == '{':
+            bracketStack = ['{']
+            text = text[1:]
+            lastIndex = 0
+            for index in range(len(text)):
+                if text[index] == '{':
+                    bracketStack.append(text[index])
+                else:
+                    if text[index] == '}':
+                        bracketStack.pop()
+                        if len(bracketStack) ==0:
+                            lastIndex = index 
+                            break
+            text = text[lastIndex +1:]
+            
+        return text
+        
+    def removeTable(self,text):
+        firstIndex = 0
+        lastIndex  = 0
+        ans = ''
+        brackets = []
+        for index in range(len(text)):
+            if text[index] == '{':
+                if len(brackets) ==0:
+                    lastIndex = index
+                    if lastIndex != 0 :
+                        ans += text[firstIndex:lastIndex]
+                brackets.append('{')
+            if text[index] == '}':
+                if len(brackets) >0:
+                    brackets.pop()
+                
+                if len(brackets) == 0:
+                    firstIndex = index+1
+        if firstIndex < len(text):
+            ans += text[firstIndex:]
+        return ans
     def processText(self,elem,textSubelem,page_id,catFlag= False):
-        global categoryPattern,disambiguationPattern,innerLinkPattern
-        global partionPattern,skipPattern,removePattern,removePattern2,removeBracket
-        global quotePattern,disambiguationPattern2
-        global removeInfoBox,removeBracket2,tablePattern
-        #print elem[0].text 
-        if page_id == 30251436:
-            print textSubelem.text
-            print "------------------------------------------------------------"
-            sys.exit()
+        global categoryPattern,innerLinkPattern
+        global partionPattern,skipPattern,htmltagPattern,filePattern,removeBracket
+        global quotePattern,disambiguationPattern
+        global bracketPattern,tablePattern
+        global wikiPattern,refPattern,commentPattern
+#         if page_id == 29626388:
+#             print textSubelem.text
+#             print "------------------------------------------------------------"
+# #             #sys.exit()
         if textSubelem.text != None:
-            #print textSubelem.text
-            #print elem[0].text   
+            title = re.sub(quotePattern,'\'\'',elem[0].text)
             disFlag = False
             catlist = []
             text = textSubelem.text
-            text = re.sub(removeInfoBox,'\'\'\'',text,count = 1)
-            text = re.sub(tablePattern,'',text)   # 去掉表格
+#             if text[-1] == '}':
+#                 print text[-30:-1],title
             if len(text) > 501:
                 last = str(text)[-500:]
             else:
@@ -215,17 +268,31 @@ class XMLProcessor:
             last = last.split('\n',-1) 
             #查找消歧标记
             for eachline in last:
-                match = re.match(disambiguationPattern2,eachline)
+                match = re.match(disambiguationPattern,eachline)
                 if match:
                     disFlag = True
                     oneCat = re.sub(quotePattern,'\'\'',match.group(0)[2:-2])    
                     #print oneCat                
                     catlist.append(oneCat)
-            #去掉一些中括号和大括号之类的符号        
-            text = re.sub(removePattern2,'',text)       
+            text = re.sub(skipPattern,'\n[[Category:',text)
+            
+            text = self.removeTable(text)
+#             if page_id == 29626388:
+#                 print text
+#                 print "------------------------------------------------------------"
+#                 print catlist
+#                 sys.exit()
+        
+            text = re.sub(filePattern,'',text)  #去掉非文本
+            
+           # text = self.removeInfoBox(text)   #去掉infobox
+           # text = re.sub(tablePattern,'',text)   # 去掉表格
+            text = re.sub(refPattern,'',text)   # 去掉脚注
+            text = re.sub(commentPattern,'',text)
             
             #去掉文本的后半段，引用和相关链接等     
-            text = re.sub(skipPattern,'\n[[Category:',text)
+           # print text
+            
             #对剩余的文本进行分行处理
             result = text.split("\n")            
             absAnchorlist = []
@@ -237,9 +304,10 @@ class XMLProcessor:
             for i in range(len(result)):
                 
                 line = result[i]
+               
                 if line == '':
                     continue
-                
+                 
                 if absFlag:
                     #判断是否存在摘要
                     isPartion = re.match(partionPattern,line)
@@ -249,13 +317,12 @@ class XMLProcessor:
                 #匹配其类别
                 catm  = re.match(categoryPattern,line)
                 if catm:
-                    oneCat = catm.group(0)[11:-2]                     
+                    oneCat = catm.group(0)[11:-2]
+                    #去掉wiki分类
+                    if re.match(wikiPattern,oneCat):
+                        continue                     
                     string.replace(oneCat,'|','')
                     string.replace(oneCat,'*','')
-                    #lastChar = oneCat[len(oneCat)-1]
-#                     while lastChar==' ' or lastChar == '|' or lastChar=='*':
-#                         oneCat = oneCat[:-1]
-#                         lastChar = oneCat[len(oneCat)-1]
                     oneCat = re.sub(quotePattern,'\'\'',oneCat)
                     if len(oneCat) !=0 :
                         catlist.append(oneCat)
@@ -266,35 +333,35 @@ class XMLProcessor:
                             disFlag = True
                     
                     continue
-               #如果存在摘要
-                if absFlag:
-                    line = re.sub(quotePattern,'\'\'',line)                   
+                
+                line = re.sub(quotePattern,'\'\'',line)    
+                #如果存在摘要
+                if absFlag:               
                     absAnchorlist += re.findall(innerLinkPattern,line)
-                    line=re.sub(removePattern,'',line)
+                    line=re.sub(htmltagPattern,'',line)
                     if line == '':
                         continue
-                    #去掉摘要里面的括号
-                    #line = re.sub(removeBracket,'',line)
-                    line = re.sub(removeBracket2,'',line)
-                    
+                    line = re.sub(bracketPattern,'',line)
                     absRawText += line
+                
                 else:
-                    line = re.sub(quotePattern,'\'\'',line)                    
                     textAnchorlist += re.findall(innerLinkPattern,line)
-                    line=re.sub(removePattern,'',line)
-                    
-                    line = re.sub(removeBracket2,'',line)
-                    
+                    line=re.sub(htmltagPattern,'',line)
+                    line = re.sub(bracketPattern,'',line)
                     if line == '':
                         continue
                     textRawText += line
                     
             for index in range(len(absAnchorlist)):
                 absAnchorlist[index] = absAnchorlist[index][2:-2]
+#                 disflag = str(absAnchorlist[index]).find('|')
+#                 if disflag != -1:
+#                     absAnchorlist[index] = absAnchorlist[index][0:disflag]
             for index in range(len(textAnchorlist)):
                 textAnchorlist[index] = textAnchorlist[index][2:-2]
-            
-            title = re.sub(quotePattern,'\'\'',elem[0].text)
+#                 disflag = str(textAnchorlist[index]).find('|')
+#                 if disflag != -1:
+#                     textAnchorlist[index] = textAnchorlist[index][0:disflag]
             
             if disFlag:        
                 try:
@@ -310,14 +377,14 @@ class XMLProcessor:
                 if catFlag == False:
                     self.articleSqlFile.write(self.getArticleSql(page_id,title,absRawText,absAnchorlist,textRawText,textAnchorlist))
                     self.leafCatSqlFile.write(self.getLeafCategoryInsertSql(page_id,title,'|'.join(catlist)))
-                    self.pagelinksSqlFile.write(self.getPagelinkSql(page_id, absAnchorlist+textAnchorlist))
+                    self.pagelinksSqlFile.write(self.getPagelinkSql(page_id,title, absAnchorlist+textAnchorlist))
             except:
                 print "Cannot write to the output file"
                 sys.exit(1)
     
     #主要处理过程
     def Processor(self):
-        notWantPage = re.compile('(w|W)iki(P|p)edia.*')
+        global wikiPattern
         #程序开始运行时间
         sTime= time.time()
         #预处理
@@ -363,10 +430,11 @@ class XMLProcessor:
                                 #print elem[0].text
                                 continue
                             #去掉包含wikipedia 的页面 
-                            if re.match(notWantPage,elem[0].text):
+                            if re.match(wikiPattern,elem[0].text):
                                 continue
+                            title = re.sub(quotePattern,'\'\'',elem[0].text)
                             pageid = int(elem[2].text)
-                            self.processNamespace(pageid)
+                            self.processNamespace(pageid,title)
                             redirectSubelem = elem.find("./"+self.model.xsi+"redirect")
                             if redirectSubelem != None :
                                  self.processRedirect(elem,redirectSubelem,pageid)
@@ -375,7 +443,7 @@ class XMLProcessor:
                     if(textSubelem != None):
                         
                             #去掉包含wikipedia 的页面
-                        if re.match(notWantPage,elem[0].text):
+                        if re.match(wikiPattern,elem[0].text):
                                 continue
                         if nsSubelem.text =='14':
                             categoryid +=1
@@ -384,11 +452,6 @@ class XMLProcessor:
                             #print pageid
                             #print textSubelem.text
                             self.processText(elem, textSubelem, pageid)
-            #！！！这里很重要，这里可以节省很大内存，对处理过的节点，直接丢弃      
-            #while elem.getprevious() is not None:
-             #   print pageid
-                #print elem.getparent()
-             #   del elem.getparent()[0]
             elem.clear()
             root.clear()
         eTime = time.time()
