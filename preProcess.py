@@ -42,7 +42,7 @@ bracketPattern = re.compile('\(.*?\)')
 #页面尾部信息
 skipPattern = re.compile('== ?Further reading.*?\[\[Category:|== ?External links.*?\[\[Category:|== ?References.*?\[\[Category:|== ?See also.*?\[\[Category:|== ?Notes.*?\[\[Category:',re.DOTALL)
 #注释
-commentPattern = re.compile('(<!--)|(-->)')
+commentPattern = re.compile('(<!--.*?-->)|(<!--)|(-->)')
 
 #括号
 quotePattern = re.compile('(\')|(\")|(\\\\)')
@@ -181,7 +181,7 @@ class XMLProcessor:
         
         return "INSERT INTO `article` VALUES('%s','%s','%s','%s','%s','%s');\n"%values                 
     def getPagelinkSql(self,pageid,title,targettitle):
-        values = (pageid,title,0,'|'.join(targettitle),len(targettitle),0)
+        values = (pageid,title,0,'|'.join(targettitle),-1,-1)
         return "INSERT INTO `pagelinks` VALUES('%s','%s','%s','%s','%s','%s');\n"%values
     
     def getDisambiguationSql(self,pageid,pagetitle,dis_titles):
@@ -204,24 +204,24 @@ class XMLProcessor:
             self.namespaceSqlFile.write(insertNamespaceSql)
         except:
             print "cannot write to the namespace file"
-    def removeInfoBox(self,text):
-        text=string.lstrip(text,'\n ')
-        if text[0] == '{':
-            bracketStack = ['{']
-            text = text[1:]
-            lastIndex = 0
-            for index in range(len(text)):
-                if text[index] == '{':
-                    bracketStack.append(text[index])
-                else:
-                    if text[index] == '}':
-                        bracketStack.pop()
-                        if len(bracketStack) ==0:
-                            lastIndex = index 
-                            break
-            text = text[lastIndex +1:]
-            
-        return text
+#     def removeInfoBox(self,text):
+#         text=string.lstrip(text,'\n ')
+#         if text[0] == '{':
+#             bracketStack = ['{']
+#             text = text[1:]
+#             lastIndex = 0
+#             for index in range(len(text)):
+#                 if text[index] == '{':
+#                     bracketStack.append(text[index])
+#                 else:
+#                     if text[index] == '}':
+#                         bracketStack.pop()
+#                         if len(bracketStack) ==0:
+#                             lastIndex = index 
+#                             break
+#             text = text[lastIndex +1:]
+#             
+#         return text
         
     def removeTable(self,text):
         firstIndex = 0
@@ -250,7 +250,7 @@ class XMLProcessor:
         global quotePattern,disambiguationPattern
         global bracketPattern,tablePattern
         global wikiPattern,refPattern,commentPattern
-#         if page_id == 29626388:
+#         if page_id == 29626446:
 #             print textSubelem.text
 #             print "------------------------------------------------------------"
 # #             #sys.exit()
@@ -277,12 +277,6 @@ class XMLProcessor:
             text = re.sub(skipPattern,'\n[[Category:',text)
             
             text = self.removeTable(text)
-#             if page_id == 29626388:
-#                 print text
-#                 print "------------------------------------------------------------"
-#                 print catlist
-#                 sys.exit()
-        
             text = re.sub(filePattern,'',text)  #去掉非文本
             
            # text = self.removeInfoBox(text)   #去掉infobox
@@ -294,6 +288,12 @@ class XMLProcessor:
            # print text
             
             #对剩余的文本进行分行处理
+#             if page_id == 29626446:
+#                 print text
+#                 print "------------------------------------------------------------"
+#                 print catlist
+#                 sys.exit()
+                
             result = text.split("\n")            
             absAnchorlist = []
             textAnchorlist = []
