@@ -220,7 +220,6 @@ class XMLProcessor:
             if text[index] == '}':
                 if len(brackets) >0:
                     brackets.pop()
-                
                 if len(brackets) == 0:
                     firstIndex = index+1
         if firstIndex < len(text):
@@ -237,6 +236,9 @@ class XMLProcessor:
             disFlag = False
             catlist = []
             text = textSubelem.text
+            if page_id == 29673634:
+                print textSubelem.text
+                sys.exit()
 #             if text[-1] == '}':
 #                 print text[-30:-1],title
             if len(text) > 501:

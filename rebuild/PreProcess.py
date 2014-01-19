@@ -94,6 +94,38 @@ class XMLProcessor(SQLGenerator):
         if firstIndex < len(text):
             ans += text[firstIndex:]
         return ans
+    def templateFinder(self,text):
+        catlist = []
+        pagetext = text
+        if pagetext[-1] !='}':
+            return catlist
+        rightBracket = []
+        lastIndex = 0
+        firstIndex = len(pagetext)-1
+        for i in range(len(pagetext),0,-1):
+            if text[i-1] == '}':
+                rightBracket.append('}')
+                if len(rightBracket) ==2:
+                    firstIndex = i-1
+                if len(rightBracket) >2:
+                    return catlist
+            elif text[i-1] == '{':
+                if len(rightBracket) >0:
+                    rightBracket.pop()
+                else:
+                    return catlist
+                if len(rightBracket) ==0:
+                    lastIndex = i+1
+                    oneCat = re.sub(cv.quotePattern,'\'\'',str(pagetext[lastIndex:firstIndex])) 
+                    catlist.append(oneCat)
+            else:
+                if len(rightBracket) ==0:
+                    return catlist
+                elif text[i-1] == '\n':
+                    return catlist
+                    
+        return catlist      
+            
     def disTemplateFinder(self,text):
         catlist = []
         if len(text) > 501:
@@ -114,15 +146,20 @@ class XMLProcessor(SQLGenerator):
         if pageText != None:
             title = re.sub(cv.quotePattern,'\'\'',title)
             disFlag = False
-            catlist = self.disTemplateFinder(pageText)
-            if len(catlist) > 0:
-                disFlag = True
-            
-            text = re.sub(cv.skipPattern,'\n[[Category:',pageText)
+            text = re.sub(cv.commentPattern,'',pageText)
+            catlist = self.disTemplateFinder(text) #匹配消歧义模板
+            if pageText[-1]== '}':
+                if len(catlist) > 0:
+                    disFlag = True
+                else:
+                    catlist = self.templateFinder(text) #匹配一般模板
+                   # print catlist
+                
+            text = re.sub(cv.skipPattern,'\n[[Category:',text)
             text = self.removeBracket(text)
             text = re.sub(cv.filePattern,'',text)  #去掉非文本
             text = re.sub(cv.refPattern,'',text)   # 去掉脚注
-            text = re.sub(cv.commentPattern,'',text)            
+                       
             result = text.split("\n")            
             absAnchorlist = []
             textAnchorlist = []
@@ -219,9 +256,6 @@ class XMLProcessor(SQLGenerator):
         title = page['title']
         pageid = page['id']
         text = page['text']
-        if pageid == '29638504':
-            print page
-         #   sys.exit()
         if re.match(cv.wikiPattern,title):
             return 
         if not catFlag:
@@ -249,8 +283,11 @@ class XMLProcessor(SQLGenerator):
         for (event,elem) in content:
             if event =="start" and elem.tag == cv.xml_xsi+'page':
                 pageCount +=1
-                if pageCount %4000 ==0:
+                if pageCount %5000 ==0:
                     print '已处理文章数目:'+str(pageCount)
+                
+                if pageCount ==20000:
+                    sys.exit(1)
                 apage = self.getContent(content)
                 if apage['ns'] == '0':
                     self.processPage(apage)

@@ -23,7 +23,7 @@ websitePattern = re.compile('(\w+\.){2,4}\w+')
 #类别标签
 categoryPattern = re.compile(u'\[\[Category:.+?\]\]')
 #消歧义类别模板
-disambiguationPattern = re.compile(u'\{\{((.*?(D|d)isambig.*?)|(.*?(H|h)ndis.*?)|(.*?(G|g)eodis.*?)|((s|S)urnames?)|(.*?(L|l)ists of ambiguous numbers.*?))\}\}')
+disambiguationPattern = re.compile(u'\{\{((.*?(D|d)isambig.*?)|(.*?(H|h)ndis.*?)|(.*?(G|g)eodis.*?)|((s|S)urnames?(\|.*?)?}})|(.*?(L|l)ists of ambiguous numbers.*?))\}\}')
 
 #内部链接
 innerLinkPattern = re.compile(u'\[\[.+?\]\]')

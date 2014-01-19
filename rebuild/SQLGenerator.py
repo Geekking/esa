@@ -82,7 +82,7 @@ class SQLGenerator:
     def getCreatePagelinksTableSql(self):
         self.createPagelinksTableSql= '''
                 DROP TABLE IF EXISTS `pagelinks`;\n
-                CREATE TABLE `pagelinks` (`source_id` int(100) unsigned NOT NULL , `source_title` longtext DEFAULT NULL ,`target_id` int(100) unsigned DEFAULT NULL, `target_title` longtext DEFAULT NULL,`outlinknumber` int(100) unsigned DEFAULT NULL,`inlinknumber` int(100) unsigned DEFAULT NULL ,PRIMARY KEY (`source_id`))ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n'''
+                CREATE TABLE `pagelinks` (`source_id` int(100) unsigned NOT NULL , `source_title` longtext DEFAULT NULL ,`target_id` int(100) unsigned DEFAULT NULL, `target_title` longtext DEFAULT NULL,`outlinknumber` int(100)  DEFAULT NULL,`inlinknumber` int(100) DEFAULT NULL ,PRIMARY KEY (`source_id`))ENGINE=InnoDB AUTO_INCREMENT=230395 DEFAULT CHARSET=utf8mb4;\n'''
 
   
         return self.createPagelinksTableSql
